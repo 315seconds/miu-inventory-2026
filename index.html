@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>마켓인유 재고조사 (최종수정)</title>
+    <style>
+        body { font-family: 'Apple SD Gothic Neo', sans-serif; margin: 0; padding: 20px; background-color: #f4f4f9; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
+        
+        .status-bar { display: flex; justify-content: space-between; color: #666; font-size: 14px; margin-bottom: 10px; font-weight: bold; }
+        
+        .counter-box { background: white; padding: 30px; border-radius: 15px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; border: 2px solid #ddd; }
+        .counter-title { font-size: 18px; color: #888; margin-bottom: 5px; }
+        .counter-number { font-size: 80px; font-weight: bold; color: #333; line-height: 1; }
+        .counter-unit { font-size: 24px; color: #888; }
+        
+        /* 입력창 스타일 */
+        input[type="text"] { width: 100%; padding: 15px; font-size: 18px; border: 2px solid #007bff; border-radius: 10px; box-sizing: border-box; margin-bottom: 10px; text-align: center; }
+        input:focus { outline: none; background-color: #eef7ff; border-color: #0056b3; }
+
+        .btn-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        button { flex: 1; padding: 15px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; color: white; }
+        .btn-save { background-color: #007bff; flex: 2; } 
+        .btn-undo { background-color: #dc3545; } 
+        .btn-export { background-color: #28a745; width: 100%; margin-top: auto; } 
+
+        .list-container { flex: 1; overflow-y: auto; background: white; border-radius: 10px; padding: 10px; border: 1px solid #ddd; }
+        .list-item { padding: 8px; border-bottom: 1px solid #eee; font-size: 14px; display: flex; justify-content: space-between; }
+        
+        .duplicate-item { background-color: #ffe6e6; color: red; font-weight: bold; }
+        
+        /* [수정 1] 알림창: 빨간색 배경, 글자 잘 보이게 수정 */
+        .alert-box { 
+            position: fixed; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            background: rgba(220, 53, 69, 0.95); /* 진한 빨강 배경 */
+            color: white; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            z-index: 9999; /* 제일 위에 뜨도록 */
+            display: none; 
+            text-align: center; 
+            padding: 20px; 
+            flex-direction: column; 
+            gap: 15px;
+        }
+        #alertTitle { font-size: 32px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div id="alertBox" class="alert-box">
+        <div style="font-size: 50px;">⚠️</div>
+        <div id="alertTitle">중복 바코드!</div>
+        <div style="font-size: 18px; font-weight: normal; opacity: 0.9;">(리스트에는 저장되었습니다)</div>
+    </div>
+
+    <div class="status-bar">
+        <span id="totalCount">총 누적: 0벌</span>
+        <span id="hangerInfo" style="color:#007bff;">현재: 1번 행거</span>
+    </div>
+
+    <div class="counter-box">
+        <div class="counter-title">현재 행거 수량</div>
+        <div>
+            <span class="counter-number" id="currentCount">0</span>
+            <span class="counter-unit">벌</span>
+        </div>
+        <div style="font-size:14px; color:#aaa; margin-top:10px;" id="lastCode">마지막: -</div>
+    </div>
+
+    <input type="text" id="barcodeInput" placeholder="터치 후 스캔하세요" 
+           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+    <div class="btn-group">
+        <button class="btn-undo" onclick="undoLast()">↩ 삭제</button>
+        <button class="btn-save" onclick="saveHanger()">💾 행거 완료 (다음)</button>
+    </div>
+
+    <div class="list-container" id="scanList">
+        <div style="text-align:center; padding:20px; color:#ccc;">스캔 기록이 여기에 표시됩니다.</div>
+    </div>
+
+    <button class="btn-export" onclick="exportToCSV()">📤 엑셀 다운로드</button>
+
+    <script>
+        let allData = []; 
+        let currentHangerData = []; 
+        let hangerCount = 1; 
+        let inputTimer = null; 
+        
+        const input = document.getElementById('barcodeInput');
+        const alertBox = document.getElementById('alertBox');
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // 한글 매핑 데이터
+        const CHO = ["r","R","s","e","E","f","a","q","Q","t","T","d","w","W","c","z","x","v","g"];
+        const JUNG = ["k","o","i","O","j","p","u","P","h","hk","ho","hl","y","n","nj","np","nl","b","m","ml","l"];
+        const JONG = ["","r","R","rt","s","sw","sg","e","f","fr","fa","fq","ft","fx","fv","fg","a","q","qt","t","T","d","w","c","z","x","v","g"];
+        
+        const singleMap = {
+            'ㅂ':'q', 'ㅈ':'w', 'ㄷ':'e', 'ㄱ':'r', 'ㅅ':'t', 
+            'ㅁ':'a', 'ㄴ':'s', 'ㅇ':'d', 'ㄹ':'f', 'ㅎ':'g', 
+            'ㅋ':'z', 'ㅌ':'x', 'ㅊ':'c', 'ㅍ':'v', 
+            'ㅃ':'Q', 'ㅉ':'W', 'ㄸ':'E', 'ㄲ':'R', 'ㅆ':'T',
+            
+            'ㅛ':'y', 'ㅕ':'u', 'ㅑ':'i', 'ㅐ':'o', 'ㅔ':'p',
+            'ㅗ':'h', 'ㅓ':'j', 'ㅏ':'k', 'ㅣ':'l',
+            'ㅠ':'b', 'ㅜ':'n', 'ㅡ':'m', 'ㅒ':'O', 'ㅖ':'P',
+
+            'ㅘ':'hk', 'ㅙ':'ho', 'ㅚ':'hl', 
+            'ㅝ':'nj', 'ㅞ':'np', 'ㅟ':'nl', 'ㅢ':'ml'
+        };
+
+        function convertHangulToEnglish(text) {
+            if (text.normalize) {
+                text = text.normalize('NFC');
+            }
+
+            let result = "";
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                const code = char.charCodeAt(0);
+
+                if (code >= 44032 && code <= 55203) {
+                    const uni = code - 44032;
+                    const cho = Math.floor(uni / 588);
+                    const jung = Math.floor((uni - (cho * 588)) / 28);
+                    const jong = uni % 28;
+                    result += CHO[cho] + JUNG[jung] + JONG[jong];
+                } 
+                else if (singleMap[char]) {
+                    result += singleMap[char];
+                } 
+                else {
+                    result += char;
+                }
+            }
+            return result.toUpperCase();
+        }
+
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            if (type === 'success') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.1);
+            } else {
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(200, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.5);
+            }
+        }
+
+        input.addEventListener('input', function(e) {
+            clearTimeout(inputTimer);
+            inputTimer = setTimeout(() => {
+                let val = input.value.trim();
+                if(val.length > 0) processBarcode(val);
+            }, 300); 
+        });
+
+        input.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                clearTimeout(inputTimer);
+                let val = input.value.trim();
+                if(val.length > 0) processBarcode(val);
+            }
+        });
+
+        function processBarcode(code) {
+            let convertedCode = convertHangulToEnglish(code);
+            input.value = ''; 
+
+            const isDuplicateGlobal = allData.some(item => item.barcode === convertedCode);
+            const isDuplicateCurrent = currentHangerData.some(item => item.code === convertedCode);
+            let isDup = false;
+
+            if (isDuplicateGlobal || isDuplicateCurrent) {
+                isDup = true;
+                playSound('error');
+                // [수정 1] 중복 시 경고창 띄우기 (2초)
+                showAlert(`중복 발견!\n${convertedCode}`);
+            } else {
+                playSound('success');
+            }
+
+            currentHangerData.push({ code: convertedCode, isDup: isDup });
+            updateUI();
+        }
+
+        function updateUI() {
+            document.getElementById('currentCount').innerText = currentHangerData.length;
+            document.getElementById('totalCount').innerText = `총 누적: ${allData.length + currentHangerData.length}벌`;
+            
+            const lastItem = currentHangerData[currentHangerData.length - 1];
+            document.getElementById('lastCode').innerText = `마지막: ${lastItem ? lastItem.code : '-'}`;
+            
+            const listContainer = document.getElementById('scanList');
+            listContainer.innerHTML = currentHangerData.slice().reverse().map((item, index) => {
+                const dupClass = item.isDup ? 'duplicate-item' : '';
+                const dupText = item.isDup ? '(중복)' : '';
+                return `<div class="list-item ${dupClass}">
+                            <span>${item.code} ${dupText}</span> 
+                            <span style="color:#888">#${currentHangerData.length - index}</span>
+                        </div>`;
+            }).join('');
+            
+            input.focus();
+        }
+
+        // [수정 1] 경고창 로직 개선
+        function showAlert(msg) {
+            document.getElementById('alertTitle').innerText = msg;
+            alertBox.style.display = 'flex';
+            
+            // 기존 포커스 뺏김 방지 및 2초 유지
+            setTimeout(() => {
+                alertBox.style.display = 'none';
+                input.focus();
+            }, 2000); // 2초 (2000ms)
+        }
+
+        function undoLast() {
+            if (currentHangerData.length > 0) {
+                if(confirm("방금 찍은 바코드를 삭제할까요?")) {
+                    currentHangerData.pop();
+                    updateUI();
+                }
+            }
+            input.focus();
+        }
+
+        function saveHanger() {
+            if (currentHangerData.length === 0) {
+                alert("저장할 데이터가 없습니다.");
+                input.focus();
+                return;
+            }
+            if(confirm(`${hangerCount}번 행거 (${currentHangerData.length}벌) 저장을 완료하고 다음으로 넘어가시겠습니까?`)) {
+                currentHangerData.forEach(item => {
+                    allData.push({ 
+                        hanger: hangerCount, 
+                        barcode: item.code, 
+                        isDuplicate: item.isDup ? 'Y' : 'N', 
+                        time: new Date().toLocaleTimeString() 
+                    });
+                });
+                
+                currentHangerData = [];
+                hangerCount++;
+                document.getElementById('hangerInfo').innerText = `현재: ${hangerCount}번 행거`;
+                updateUI();
+                alert("저장 완료! 다음 행거를 진행하세요.");
+            }
+        }
+
+        function exportToCSV() {
+            if (currentHangerData.length > 0) {
+                if(!confirm("현재 작성 중인 행거는 저장되지 않았습니다. 제외하고 다운로드할까요?")) return;
+            }
+            if (allData.length === 0) {
+                alert("다운로드할 데이터가 없습니다.");
+                return;
+            }
+
+            let csvContent = "\uFEFF행거번호,바코드,중복여부,스캔시간\n";
+            allData.forEach(row => {
+                csvContent += `${row.hanger},${row.barcode},${row.isDuplicate},${row.time}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            
+            const date = new Date();
+            const fileName = `재고조사_${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2,'0')}${date.getDate()}_${date.getHours()}${date.getMinutes()}.csv`;
+            
+            link.setAttribute("href", url);
+            link.setAttribute("download", fileName);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        input.focus();
+    </script>
+</body>
+</html>
