@@ -3,297 +3,226 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>마켓인유 재고조사 (최종수정)</title>
+    <title>마켓인유 재고조사</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,300&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Apple SD Gothic Neo', sans-serif; margin: 0; padding: 20px; background-color: #f4f4f9; display: flex; flex-direction: column; height: 100vh; box-sizing: border-box; }
-        
-        .status-bar { display: flex; justify-content: space-between; color: #666; font-size: 14px; margin-bottom: 10px; font-weight: bold; }
-        
-        .counter-box { background: white; padding: 30px; border-radius: 15px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; border: 2px solid #ddd; }
-        .counter-title { font-size: 18px; color: #888; margin-bottom: 5px; }
-        .counter-number { font-size: 80px; font-weight: bold; color: #333; line-height: 1; }
-        .counter-unit { font-size: 24px; color: #888; }
-        
-        /* 입력창 스타일 */
-        input[type="text"] { width: 100%; padding: 15px; font-size: 18px; border: 2px solid #007bff; border-radius: 10px; box-sizing: border-box; margin-bottom: 10px; text-align: center; }
-        input:focus { outline: none; background-color: #eef7ff; border-color: #0056b3; }
-
-        .btn-group { display: flex; gap: 10px; margin-bottom: 20px; }
-        button { flex: 1; padding: 15px; border: none; border-radius: 10px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; color: white; }
-        .btn-save { background-color: #007bff; flex: 2; } 
-        .btn-undo { background-color: #dc3545; } 
-        .btn-export { background-color: #28a745; width: 100%; margin-top: auto; } 
-
-        .list-container { flex: 1; overflow-y: auto; background: white; border-radius: 10px; padding: 10px; border: 1px solid #ddd; }
-        .list-item { padding: 8px; border-bottom: 1px solid #eee; font-size: 14px; display: flex; justify-content: space-between; }
-        
-        .duplicate-item { background-color: #ffe6e6; color: red; font-weight: bold; }
-        
-        /* [수정 1] 알림창: 빨간색 배경, 글자 잘 보이게 수정 */
-        .alert-box { 
-            position: fixed; 
-            top: 0; left: 0; 
-            width: 100%; height: 100%; 
-            background: rgba(220, 53, 69, 0.95); /* 진한 빨강 배경 */
-            color: white; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            z-index: 9999; /* 제일 위에 뜨도록 */
-            display: none; 
-            text-align: center; 
-            padding: 20px; 
-            flex-direction: column; 
-            gap: 15px;
+        :root {
+            --bg: #F6F1EB;
+            --card: rgba(255,255,255,0.55);
+            --card-border: rgba(255,255,255,0.7);
+            --card-solid: #FFFFFF;
+            --text-primary: #1A1A1A;
+            --text-secondary: #8A8580;
+            --text-tertiary: #BBB5AD;
+            --accent: #E8713A;
+            --accent-light: rgba(232,113,58,0.12);
+            --danger: #D44440;
+            --danger-light: rgba(212,68,64,0.08);
+            --success: #3A9E6E;
+            --glass-blur: 20px;
+            --radius-lg: 20px;
+            --radius-md: 14px;
+            --radius-sm: 10px;
         }
-        #alertTitle { font-size: 32px; font-weight: bold; }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: 'DM Sans','Apple SD Gothic Neo',sans-serif;
+            background: var(--bg);
+            display: flex; flex-direction: column;
+            height: 100vh; height: 100dvh;
+            overflow: hidden; position: relative;
+        }
+
+        /* ── 배경 블롭 ── */
+        .bg-blobs { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+        .blob { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.5; animation: blobFloat 20s ease-in-out infinite; }
+        .blob-1 { width: 280px; height: 280px; background: radial-gradient(circle,#F0A04B 0%,#E8713A 50%,transparent 70%); top: -60px; right: -40px; }
+        .blob-2 { width: 200px; height: 200px; background: radial-gradient(circle,#F7C96E 0%,#EDB44B 50%,transparent 70%); top: 30%; left: -50px; animation-delay: -7s; }
+        .blob-3 { width: 160px; height: 160px; background: radial-gradient(circle,#9DC4E8 0%,#5B8DEF 50%,transparent 70%); bottom: 15%; right: -20px; animation-delay: -14s; opacity: 0.35; }
+        @keyframes blobFloat { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(15px,-20px) scale(1.05)} 66%{transform:translate(-10px,15px) scale(0.95)} }
+
+        /* ── 앱 ── */
+        .app { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100%; padding: 16px; gap: 12px; }
+
+        /* ── 상태바 ── */
+        .status-bar { display: flex; justify-content: space-between; align-items: center; padding: 0 2px; }
+        .status-total { font-size: 13px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px; }
+        .status-backup { font-size: 10px; color: var(--success); font-weight: 500; opacity: 0.8; }
+        .status-hanger { font-size: 12px; font-weight: 700; color: var(--accent); background: var(--accent-light); padding: 5px 14px; border-radius: 20px; }
+
+        /* ── 카운터 (글래스) ── */
+        .counter-card {
+            background: var(--card); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+            border: 1px solid var(--card-border); border-radius: var(--radius-lg);
+            padding: 28px 20px 20px; text-align: center; position: relative; overflow: hidden;
+        }
+        .counter-card::before { content:''; position: absolute; top:0; left:0; width:100%; height:1px; background: linear-gradient(90deg,transparent,rgba(255,255,255,0.8),transparent); }
+        .counter-label { font-size: 12px; font-weight: 500; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
+        .counter-value { font-size: 76px; font-weight: 700; color: var(--text-primary); line-height: 1; letter-spacing: -4px; font-variant-numeric: tabular-nums; }
+        .counter-unit { font-size: 18px; font-weight: 500; color: var(--text-tertiary); margin-left: 2px; letter-spacing: 0; }
+        .counter-last { margin-top: 12px; font-size: 12px; color: var(--text-tertiary); font-weight: 500; }
+        .counter-last code { font-family:'JetBrains Mono',monospace; color: var(--text-secondary); font-weight: 600; font-size: 11px; background: rgba(0,0,0,0.04); padding: 2px 8px; border-radius: 6px; }
+
+        /* ── 입력 ── */
+        .input-field {
+            width: 100%; padding: 15px 18px; font-size: 16px; font-family: 'DM Sans',sans-serif; font-weight: 500;
+            color: var(--text-primary); border: 1.5px solid rgba(0,0,0,0.08); border-radius: var(--radius-md);
+            background: var(--card-solid); text-align: center; transition: all 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .input-field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light),0 2px 8px rgba(232,113,58,0.1); }
+        .input-field::placeholder { color: var(--text-tertiary); font-weight: 400; }
+
+        /* ── 버튼 ── */
+        .btn-row { display: flex; gap: 10px; }
+        .btn { flex:1; padding:14px 12px; border:none; border-radius:var(--radius-md); font-family:'DM Sans',sans-serif; font-size:14px; font-weight:700; cursor:pointer; transition:transform 0.1s,opacity 0.15s; letter-spacing:-0.2px; }
+        .btn:active { transform: scale(0.97); }
+        .btn-undo { background: rgba(0,0,0,0.05); color: var(--text-secondary); flex: 0 0 auto; padding: 14px 20px; }
+        .btn-save { background: var(--text-primary); color: #fff; flex: 1; }
+
+        /* ── 리스트 (글래스) ── */
+        .list-card {
+            flex: 1; overflow-y: auto;
+            background: var(--card); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur));
+            border: 1px solid var(--card-border); border-radius: var(--radius-lg);
+            position: relative; -webkit-overflow-scrolling: touch;
+        }
+        .list-card::before { content:''; position:absolute; top:0; left:0; width:100%; height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.8),transparent); }
+        .list-empty { text-align: center; padding: 40px 20px; color: var(--text-tertiary); font-size: 13px; font-weight: 500; }
+        .list-item { padding: 11px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.04); }
+        .list-item:last-child { border-bottom: none; }
+        .list-item .code { font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:600; color:var(--text-primary); }
+        .list-item .meta { font-size:11px; color:var(--text-tertiary); font-weight:500; display:flex; align-items:center; gap:6px; }
+        .list-item .time-tag { font-size:10px; color:var(--text-tertiary); font-variant-numeric:tabular-nums; }
+        .list-item.is-dup { background: var(--danger-light); }
+        .list-item.is-dup .code { color: var(--danger); }
+        .dup-tag { font-size:9px; font-weight:700; color:#fff; background:var(--danger); padding:2px 6px; border-radius:4px; margin-left:6px; letter-spacing:0.3px; }
+
+        /* ── 하단 ── */
+        .footer-area { display: flex; flex-direction: column; gap: 6px; }
+        .btn-export { width:100%; padding:15px; border:none; border-radius:var(--radius-md); background:var(--accent); color:#fff; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:700; cursor:pointer; letter-spacing:-0.2px; transition:transform 0.1s; }
+        .btn-export:active { transform: scale(0.98); }
+        .btn-reset { width:100%; padding:8px; border:none; background:none; color:var(--text-tertiary); font-family:'DM Sans',sans-serif; font-size:11px; font-weight:500; cursor:pointer; }
+
+        /* ── 중복 오버레이 ── */
+        .dup-overlay { position:fixed; inset:0; background:rgba(212,68,64,0.95); color:white; display:none; justify-content:center; align-items:center; z-index:9999; text-align:center; padding:24px; flex-direction:column; gap:10px; }
+        .dup-overlay.show { display:flex; animation:dupPulse 0.25s ease; }
+        @keyframes dupPulse { 0%{opacity:0;transform:scale(1.03)} 100%{opacity:1;transform:scale(1)} }
+        .dup-overlay .dup-icon { font-size:44px; }
+        .dup-overlay .dup-title { font-size:26px; font-weight:700; line-height:1.3; white-space:pre-line; letter-spacing:-0.5px; }
+        .dup-overlay .dup-sub { font-size:14px; opacity:0.75; font-weight:400; }
+
+        /* ── 모달 (글래스) ── */
+        .modal-bg { position:fixed; inset:0; background:rgba(30,28,25,0.45); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:none; justify-content:center; align-items:center; z-index:10000; padding:28px; }
+        .modal-bg.show { display:flex; animation:modalIn 0.2s ease; }
+        @keyframes modalIn { from{opacity:0} to{opacity:1} }
+        .modal-card { background:var(--card-solid); border-radius:var(--radius-lg); padding:32px 24px 22px; max-width:300px; width:100%; text-align:center; box-shadow:0 24px 80px rgba(0,0,0,0.18); }
+        .modal-msg { font-size:15px; font-weight:600; color:var(--text-primary); line-height:1.55; margin-bottom:24px; white-space:pre-line; word-break:keep-all; }
+        .modal-btns { display:flex; gap:10px; }
+        .modal-btn { flex:1; padding:13px 8px; border:none; border-radius:var(--radius-sm); font-family:'DM Sans',sans-serif; font-size:14px; font-weight:700; cursor:pointer; transition:opacity 0.15s; }
+        .modal-btn:active { opacity:0.8; }
+        .modal-btn-cancel { background:rgba(0,0,0,0.06); color:var(--text-secondary); }
+        .modal-btn-confirm { background:var(--text-primary); color:#fff; }
+        .modal-btn-danger { background:var(--danger); color:#fff; }
+        .modal-btn-ok { background:var(--text-primary); color:#fff; }
+
+        /* ── 토스트 ── */
+        .toast { position:fixed; bottom:90px; left:50%; transform:translateX(-50%) translateY(16px); background:var(--text-primary); color:#fff; padding:10px 22px; border-radius:12px; font-size:13px; font-weight:600; opacity:0; transition:all 0.3s cubic-bezier(0.16,1,0.3,1); z-index:8000; pointer-events:none; letter-spacing:-0.2px; box-shadow:0 8px 30px rgba(0,0,0,0.15); }
+        .toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
     </style>
 </head>
 <body>
+    <div class="bg-blobs"><div class="blob blob-1"></div><div class="blob blob-2"></div><div class="blob blob-3"></div></div>
 
-    <div id="alertBox" class="alert-box">
-        <div style="font-size: 50px;">⚠️</div>
-        <div id="alertTitle">중복 바코드!</div>
-        <div style="font-size: 18px; font-weight: normal; opacity: 0.9;">(리스트에는 저장되었습니다)</div>
+    <div id="dupOverlay" class="dup-overlay">
+        <div class="dup-icon">⚠️</div>
+        <div class="dup-title" id="dupTitle">중복 바코드!</div>
+        <div class="dup-sub">리스트에는 저장되었습니다</div>
     </div>
 
-    <div class="status-bar">
-        <span id="totalCount">총 누적: 0벌</span>
-        <span id="hangerInfo" style="color:#007bff;">현재: 1번 행거</span>
-    </div>
-
-    <div class="counter-box">
-        <div class="counter-title">현재 행거 수량</div>
-        <div>
-            <span class="counter-number" id="currentCount">0</span>
-            <span class="counter-unit">벌</span>
+    <div id="modalBg" class="modal-bg">
+        <div class="modal-card">
+            <div class="modal-msg" id="modalMsg"></div>
+            <div class="modal-btns" id="modalBtns"></div>
         </div>
-        <div style="font-size:14px; color:#aaa; margin-top:10px;" id="lastCode">마지막: -</div>
     </div>
 
-    <input type="text" id="barcodeInput" placeholder="터치 후 스캔하세요" 
-           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    <div class="toast" id="toast"></div>
 
-    <div class="btn-group">
-        <button class="btn-undo" onclick="undoLast()">↩ 삭제</button>
-        <button class="btn-save" onclick="saveHanger()">💾 행거 완료 (다음)</button>
+    <div class="app">
+        <div class="status-bar">
+            <div><span class="status-total" id="totalCount">총 0벌</span><span class="status-backup" id="backupStatus"> · 자동저장</span></div>
+            <span class="status-hanger" id="hangerInfo">1번 행거</span>
+        </div>
+
+        <div class="counter-card">
+            <div class="counter-label">현재 행거</div>
+            <div><span class="counter-value" id="currentCount">0</span><span class="counter-unit">벌</span></div>
+            <div class="counter-last" id="lastCode">마지막 — <code>-</code></div>
+        </div>
+
+        <input class="input-field" type="text" id="barcodeInput" placeholder="터치 후 스캔하세요" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+        <div class="btn-row">
+            <button class="btn btn-undo" onclick="undoLast()">↩ 삭제</button>
+            <button class="btn btn-save" onclick="saveHanger()">행거 완료 →</button>
+        </div>
+
+        <div class="list-card" id="scanList"><div class="list-empty">스캔 기록이 여기에 표시됩니다</div></div>
+
+        <div class="footer-area">
+            <button class="btn-export" onclick="exportToCSV()">엑셀 다운로드</button>
+            <button class="btn-reset" onclick="clearAllData()">전체 데이터 초기화</button>
+        </div>
     </div>
-
-    <div class="list-container" id="scanList">
-        <div style="text-align:center; padding:20px; color:#ccc;">스캔 기록이 여기에 표시됩니다.</div>
-    </div>
-
-    <button class="btn-export" onclick="exportToCSV()">📤 엑셀 다운로드</button>
 
     <script>
-        let allData = []; 
-        let currentHangerData = []; 
-        let hangerCount = 1; 
-        let inputTimer = null; 
-        
-        const input = document.getElementById('barcodeInput');
-        const alertBox = document.getElementById('alertBox');
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let allData=[], currentHangerData=[], hangerCount=1, inputTimer=null;
+        const input=document.getElementById('barcodeInput'), dupOverlay=document.getElementById('dupOverlay');
+        const audioCtx=new (window.AudioContext||window.webkitAudioContext)();
 
-        // 한글 매핑 데이터
-        const CHO = ["r","R","s","e","E","f","a","q","Q","t","T","d","w","W","c","z","x","v","g"];
-        const JUNG = ["k","o","i","O","j","p","u","P","h","hk","ho","hl","y","n","nj","np","nl","b","m","ml","l"];
-        const JONG = ["","r","R","rt","s","sw","sg","e","f","fr","fa","fq","ft","fx","fv","fg","a","q","qt","t","T","d","w","c","z","x","v","g"];
-        
-        const singleMap = {
-            'ㅂ':'q', 'ㅈ':'w', 'ㄷ':'e', 'ㄱ':'r', 'ㅅ':'t', 
-            'ㅁ':'a', 'ㄴ':'s', 'ㅇ':'d', 'ㄹ':'f', 'ㅎ':'g', 
-            'ㅋ':'z', 'ㅌ':'x', 'ㅊ':'c', 'ㅍ':'v', 
-            'ㅃ':'Q', 'ㅉ':'W', 'ㄸ':'E', 'ㄲ':'R', 'ㅆ':'T',
-            
-            'ㅛ':'y', 'ㅕ':'u', 'ㅑ':'i', 'ㅐ':'o', 'ㅔ':'p',
-            'ㅗ':'h', 'ㅓ':'j', 'ㅏ':'k', 'ㅣ':'l',
-            'ㅠ':'b', 'ㅜ':'n', 'ㅡ':'m', 'ㅒ':'O', 'ㅖ':'P',
+        window.addEventListener('beforeunload',e=>{if(allData.length||currentHangerData.length){e.preventDefault();e.returnValue='';}});
 
-            'ㅘ':'hk', 'ㅙ':'ho', 'ㅚ':'hl', 
-            'ㅝ':'nj', 'ㅞ':'np', 'ㅟ':'nl', 'ㅢ':'ml'
-        };
+        const STORAGE_KEY='marketInYou_inventory';
+        function saveToStorage(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify({allData,currentHangerData,hangerCount}))}catch(e){}}
+        function loadFromStorage(){try{const s=localStorage.getItem(STORAGE_KEY);if(!s)return;const st=JSON.parse(s);if((st.allData?.length||0)+(st.currentHangerData?.length||0)===0)return;allData=st.allData||[];currentHangerData=st.currentHangerData||[];hangerCount=st.hangerCount||1;document.getElementById('hangerInfo').innerText=`${hangerCount}번 행거`;updateUI();showToast(`이전 데이터 복원 (${allData.length+currentHangerData.length}건)`)}catch(e){}}
+        function clearStorage(){try{localStorage.removeItem(STORAGE_KEY)}catch(e){}}
 
-        function convertHangulToEnglish(text) {
-            if (text.normalize) {
-                text = text.normalize('NFC');
-            }
+        function showModal(msg,buttons){return new Promise(resolve=>{const bg=document.getElementById('modalBg');document.getElementById('modalMsg').textContent=msg;const btns=document.getElementById('modalBtns');btns.innerHTML='';buttons.forEach(b=>{const el=document.createElement('button');el.className=`modal-btn ${b.cls||'modal-btn-ok'}`;el.textContent=b.label;el.onclick=()=>{bg.classList.remove('show');resolve(b.val);setTimeout(()=>input.focus(),50)};btns.appendChild(el)});bg.classList.add('show')})}
+        const showConfirm=msg=>showModal(msg,[{label:'취소',cls:'modal-btn-cancel',val:false},{label:'확인',cls:'modal-btn-confirm',val:true}]);
+        const showAlertModal=msg=>showModal(msg,[{label:'확인',cls:'modal-btn-ok',val:true}]);
 
-            let result = "";
-            for (let i = 0; i < text.length; i++) {
-                const char = text[i];
-                const code = char.charCodeAt(0);
+        let toastT=null;
+        function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2000)}
 
-                if (code >= 44032 && code <= 55203) {
-                    const uni = code - 44032;
-                    const cho = Math.floor(uni / 588);
-                    const jung = Math.floor((uni - (cho * 588)) / 28);
-                    const jong = uni % 28;
-                    result += CHO[cho] + JUNG[jung] + JONG[jong];
-                } 
-                else if (singleMap[char]) {
-                    result += singleMap[char];
-                } 
-                else {
-                    result += char;
-                }
-            }
-            return result.toUpperCase();
-        }
+        const CHO=["r","R","s","e","E","f","a","q","Q","t","T","d","w","W","c","z","x","v","g"];
+        const JUNG=["k","o","i","O","j","p","u","P","h","hk","ho","hl","y","n","nj","np","nl","b","m","ml","l"];
+        const JONG=["","r","R","rt","s","sw","sg","e","f","fr","fa","fq","ft","fx","fv","fg","a","q","qt","t","T","d","w","c","z","x","v","g"];
+        const singleMap={'ㅂ':'q','ㅈ':'w','ㄷ':'e','ㄱ':'r','ㅅ':'t','ㅁ':'a','ㄴ':'s','ㅇ':'d','ㄹ':'f','ㅎ':'g','ㅋ':'z','ㅌ':'x','ㅊ':'c','ㅍ':'v','ㅃ':'Q','ㅉ':'W','ㄸ':'E','ㄲ':'R','ㅆ':'T','ㅛ':'y','ㅕ':'u','ㅑ':'i','ㅐ':'o','ㅔ':'p','ㅗ':'h','ㅓ':'j','ㅏ':'k','ㅣ':'l','ㅠ':'b','ㅜ':'n','ㅡ':'m','ㅒ':'O','ㅖ':'P','ㅘ':'hk','ㅙ':'ho','ㅚ':'hl','ㅝ':'nj','ㅞ':'np','ㅟ':'nl','ㅢ':'ml'};
 
-        function playSound(type) {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            
-            if (type === 'success') {
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.1);
-            } else {
-                oscillator.type = 'sawtooth';
-                oscillator.frequency.setValueAtTime(200, audioCtx.currentTime);
-                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                oscillator.start();
-                oscillator.stop(audioCtx.currentTime + 0.5);
-            }
-        }
+        function toEng(text){if(text.normalize)text=text.normalize('NFC');let r="";for(let i=0;i<text.length;i++){const c=text[i],code=c.charCodeAt(0);if(code>=44032&&code<=55203){const u=code-44032;r+=CHO[Math.floor(u/588)]+JUNG[Math.floor((u%588)/28)]+JONG[u%28]}else r+=singleMap[c]||c}return r.toUpperCase()}
 
-        input.addEventListener('input', function(e) {
-            clearTimeout(inputTimer);
-            inputTimer = setTimeout(() => {
-                let val = input.value.trim();
-                if(val.length > 0) processBarcode(val);
-            }, 300); 
-        });
+        function playSound(type){if(audioCtx.state==='suspended')audioCtx.resume();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);if(type==='ok'){o.type='sine';o.frequency.setValueAtTime(880,audioCtx.currentTime);g.gain.setValueAtTime(0.1,audioCtx.currentTime);o.start();o.stop(audioCtx.currentTime+0.1)}else{o.type='sawtooth';o.frequency.setValueAtTime(200,audioCtx.currentTime);g.gain.setValueAtTime(0.3,audioCtx.currentTime);o.start();o.stop(audioCtx.currentTime+0.5)}}
 
-        input.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                clearTimeout(inputTimer);
-                let val = input.value.trim();
-                if(val.length > 0) processBarcode(val);
-            }
-        });
+        let dupT=null;
+        function showDup(msg){document.getElementById('dupTitle').innerText=msg;dupOverlay.classList.add('show');clearTimeout(dupT);dupT=setTimeout(()=>{dupOverlay.classList.remove('show');input.focus()},2000)}
 
-        function processBarcode(code) {
-            let convertedCode = convertHangulToEnglish(code);
-            input.value = ''; 
+        input.addEventListener('input',()=>{clearTimeout(inputTimer);inputTimer=setTimeout(()=>{const v=input.value.trim();if(v)processBarcode(v)},300)});
+        input.addEventListener('keypress',e=>{if(e.key==='Enter'){clearTimeout(inputTimer);const v=input.value.trim();if(v)processBarcode(v)}});
 
-            const isDuplicateGlobal = allData.some(item => item.barcode === convertedCode);
-            const isDuplicateCurrent = currentHangerData.some(item => item.code === convertedCode);
-            let isDup = false;
+        function processBarcode(code){const c=toEng(code);input.value='';const dup=allData.some(i=>i.barcode===c)||currentHangerData.some(i=>i.code===c);if(dup){playSound('err');showDup(`중복 발견!\n${c}`)}else playSound('ok');currentHangerData.push({code:c,isDup:dup,time:new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})});updateUI();saveToStorage()}
 
-            if (isDuplicateGlobal || isDuplicateCurrent) {
-                isDup = true;
-                playSound('error');
-                // [수정 1] 중복 시 경고창 띄우기 (2초)
-                showAlert(`중복 발견!\n${convertedCode}`);
-            } else {
-                playSound('success');
-            }
+        function updateUI(){const total=allData.length+currentHangerData.length;document.getElementById('currentCount').innerText=currentHangerData.length;document.getElementById('totalCount').innerText=`총 ${total}벌`;const last=currentHangerData[currentHangerData.length-1];document.getElementById('lastCode').innerHTML=`마지막 — <code>${last?last.code:'-'}</code>`;const list=document.getElementById('scanList');if(!currentHangerData.length){list.innerHTML='<div class="list-empty">스캔 기록이 여기에 표시됩니다</div>'}else{list.innerHTML=currentHangerData.slice().reverse().map((item,idx)=>{const n=currentHangerData.length-idx;return`<div class="list-item${item.isDup?' is-dup':''}"><span><span class="code">${item.code}</span>${item.isDup?'<span class="dup-tag">중복</span>':''}</span><span class="meta"><span class="time-tag">${item.time}</span>#${n}</span></div>`}).join('')}input.focus()}
 
-            currentHangerData.push({ code: convertedCode, isDup: isDup });
-            updateUI();
-        }
+        async function undoLast(){if(!currentHangerData.length)return input.focus();const last=currentHangerData[currentHangerData.length-1];if(await showConfirm(`마지막 바코드를 삭제할까요?\n(${last.code})`)){currentHangerData.pop();updateUI();saveToStorage();showToast('삭제 완료')}}
 
-        function updateUI() {
-            document.getElementById('currentCount').innerText = currentHangerData.length;
-            document.getElementById('totalCount').innerText = `총 누적: ${allData.length + currentHangerData.length}벌`;
-            
-            const lastItem = currentHangerData[currentHangerData.length - 1];
-            document.getElementById('lastCode').innerText = `마지막: ${lastItem ? lastItem.code : '-'}`;
-            
-            const listContainer = document.getElementById('scanList');
-            listContainer.innerHTML = currentHangerData.slice().reverse().map((item, index) => {
-                const dupClass = item.isDup ? 'duplicate-item' : '';
-                const dupText = item.isDup ? '(중복)' : '';
-                return `<div class="list-item ${dupClass}">
-                            <span>${item.code} ${dupText}</span> 
-                            <span style="color:#888">#${currentHangerData.length - index}</span>
-                        </div>`;
-            }).join('');
-            
-            input.focus();
-        }
+        async function saveHanger(){if(!currentHangerData.length)return showAlertModal('저장할 데이터가 없습니다.');if(await showConfirm(`${hangerCount}번 행거 (${currentHangerData.length}벌)\n저장하고 다음으로 넘어갈까요?`)){currentHangerData.forEach(item=>{allData.push({hanger:hangerCount,barcode:item.code,isDuplicate:item.isDup?'Y':'N',time:item.time})});currentHangerData=[];hangerCount++;document.getElementById('hangerInfo').innerText=`${hangerCount}번 행거`;updateUI();saveToStorage();showToast(`${hangerCount-1}번 행거 저장 완료!`)}}
 
-        // [수정 1] 경고창 로직 개선
-        function showAlert(msg) {
-            document.getElementById('alertTitle').innerText = msg;
-            alertBox.style.display = 'flex';
-            
-            // 기존 포커스 뺏김 방지 및 2초 유지
-            setTimeout(() => {
-                alertBox.style.display = 'none';
-                input.focus();
-            }, 2000); // 2초 (2000ms)
-        }
+        async function exportToCSV(){if(currentHangerData.length&&!(await showConfirm('현재 행거는 미저장 상태입니다.\n제외하고 다운로드할까요?')))return;if(!allData.length)return showAlertModal('다운로드할 데이터가 없습니다.');let csv="\uFEFF행거번호,바코드,중복여부,스캔시간\n";allData.forEach(r=>{csv+=`${r.hanger},${r.barcode},${r.isDuplicate},${r.time}\n`});const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}),a=document.createElement('a'),d=new Date();a.href=URL.createObjectURL(blob);a.download=`재고조사_${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}.csv`;document.body.appendChild(a);a.click();document.body.removeChild(a);showToast('다운로드 완료!')}
 
-        function undoLast() {
-            if (currentHangerData.length > 0) {
-                if(confirm("방금 찍은 바코드를 삭제할까요?")) {
-                    currentHangerData.pop();
-                    updateUI();
-                }
-            }
-            input.focus();
-        }
+        async function clearAllData(){const t=allData.length+currentHangerData.length;if(!t)return showAlertModal('초기화할 데이터가 없습니다.');if(await showModal(`모든 데이터(${t}건)를 삭제합니다.\n이 작업은 되돌릴 수 없습니다.`,[{label:'취소',cls:'modal-btn-cancel',val:false},{label:'전체 삭제',cls:'modal-btn-danger',val:true}])){allData=[];currentHangerData=[];hangerCount=1;document.getElementById('hangerInfo').innerText='1번 행거';updateUI();clearStorage();showToast('초기화 완료')}}
 
-        function saveHanger() {
-            if (currentHangerData.length === 0) {
-                alert("저장할 데이터가 없습니다.");
-                input.focus();
-                return;
-            }
-            if(confirm(`${hangerCount}번 행거 (${currentHangerData.length}벌) 저장을 완료하고 다음으로 넘어가시겠습니까?`)) {
-                currentHangerData.forEach(item => {
-                    allData.push({ 
-                        hanger: hangerCount, 
-                        barcode: item.code, 
-                        isDuplicate: item.isDup ? 'Y' : 'N', 
-                        time: new Date().toLocaleTimeString() 
-                    });
-                });
-                
-                currentHangerData = [];
-                hangerCount++;
-                document.getElementById('hangerInfo').innerText = `현재: ${hangerCount}번 행거`;
-                updateUI();
-                alert("저장 완료! 다음 행거를 진행하세요.");
-            }
-        }
-
-        function exportToCSV() {
-            if (currentHangerData.length > 0) {
-                if(!confirm("현재 작성 중인 행거는 저장되지 않았습니다. 제외하고 다운로드할까요?")) return;
-            }
-            if (allData.length === 0) {
-                alert("다운로드할 데이터가 없습니다.");
-                return;
-            }
-
-            let csvContent = "\uFEFF행거번호,바코드,중복여부,스캔시간\n";
-            allData.forEach(row => {
-                csvContent += `${row.hanger},${row.barcode},${row.isDuplicate},${row.time}\n`;
-            });
-
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
-            
-            const date = new Date();
-            const fileName = `재고조사_${date.getFullYear()}${(date.getMonth()+1).toString().padStart(2,'0')}${date.getDate()}_${date.getHours()}${date.getMinutes()}.csv`;
-            
-            link.setAttribute("href", url);
-            link.setAttribute("download", fileName);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
+        loadFromStorage();
         input.focus();
     </script>
 </body>
