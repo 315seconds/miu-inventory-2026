@@ -661,7 +661,8 @@
     }
 
     // ── 물리 키코드 → 문자 변환 (IME 완전 우회) ──
-    // e.code는 OS/IME와 무관하게 항상 물리 키 위치를 반환
+    // 1차: e.code (물리 키 위치, iOS에서 안정적)
+    // 2차: e.key  (Android/Galaxy에서 e.code가 'Unidentified'/''/빈값일 때 폴백)
     function charFromKeyEvent(e) {
         if (e.ctrlKey || e.metaKey || e.altKey) return null;
 
@@ -687,6 +688,18 @@
             'Space': ' '
         };
         if (specials[e.code] !== undefined) return specials[e.code];
+
+        // ── 2차 폴백: e.code가 없거나 'Unidentified'일 때 (Android 대응) ──
+        const codeUnreliable = !e.code || e.code === 'Unidentified' || e.code === '';
+        if (codeUnreliable && e.key && e.key.length === 1) {
+            const k = e.key;
+            // 영문자면 그대로 사용
+            if (/^[a-zA-Z]$/.test(k)) return k.toUpperCase();
+            // 숫자면 그대로 사용
+            if (/^[0-9]$/.test(k)) return k;
+            // 바코드에 쓰이는 특수문자 허용
+            if (/^[-_.\/]$/.test(k)) return k;
+        }
 
         return null;
     }
