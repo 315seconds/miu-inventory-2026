@@ -704,17 +704,18 @@
         return null;
     }
 
-    // ── 스캔 버퍼 (input.value 대신 직접 관리) ──
+    // ── 스캔 버퍼 ──
     let scanBuffer = '';
+    let lastKeyHandled = false; // keydown이 처리했는지 여부 → input 이벤트 중복 방지
 
-    // keydown에서 모든 입력을 가로채서 e.code 기반으로 직접 처리
-    // → IME가 개입하기 전에 우리가 먼저 처리하므로 한글 변환 불가
+    // ── keydown: iOS/PC에서 신뢰할 수 있는 경로 ──
     input.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
             e.preventDefault();
             clearTimeout(inputTimer);
             const v = scanBuffer.trim();
             if (v) processBarcode(v);
+            lastKeyHandled = true;
             return;
         }
 
@@ -722,6 +723,7 @@
             e.preventDefault();
             scanBuffer = scanBuffer.slice(0, -1);
             input.value = scanBuffer;
+            lastKeyHandled = true;
             return;
         }
 
@@ -730,33 +732,55 @@
             e.preventDefault(); // IME가 가로채기 전에 차단
             scanBuffer += char;
             input.value = scanBuffer;
-            // 500ms 이상 입력이 없으면 자동 처리 (Enter 없는 스캐너 대응)
+            lastKeyHandled = true;
             clearTimeout(inputTimer);
             inputTimer = setTimeout(() => {
                 const v = scanBuffer.trim();
                 if (v) processBarcode(v);
             }, 500);
+        } else {
+            // e.code가 'Unidentified'인 경우 → Android 모드로 넘김
+            lastKeyHandled = false;
         }
     });
 
-    // IME가 개입하기 시작하면 즉시 강제 리셋
-    // blur → focus 사이클로 IME 조합 상태를 끊어냄
-    input.addEventListener('compositionstart', () => {
-        const saved = scanBuffer;
-        input.blur();
-        requestAnimationFrame(() => {
-            input.focus();
-            scanBuffer = saved;
+    // ── input 이벤트: Android/Galaxy 폴백 경로 ──
+    // Android에서는 keydown의 e.code가 'Unidentified'라 charFromKeyEvent가 null을 반환
+    // 이때 lastKeyHandled = false이므로 input 이벤트의 e.data로 처리
+    // e.data는 IME 결과가 아닌 실제 삽입된 문자이므로 Android에서도 신뢰 가능
+    input.addEventListener('input', e => {
+        if (lastKeyHandled) {
+            // iOS/PC: keydown이 이미 처리함 → input.value를 버퍼로 덮어써서 IME 잔류 차단
             input.value = scanBuffer;
-        });
+            lastKeyHandled = false;
+            return;
+        }
+
+        // Android 모드: e.data 사용
+        const raw = e.data || '';
+        // 영문, 숫자, 바코드 허용 특수문자만 통과 (한글 등 차단)
+        const safe = raw.toUpperCase().replace(/[^A-Z0-9\-_.\/]/g, '');
+        if (safe) {
+            scanBuffer += safe;
+            input.value = scanBuffer;
+            clearTimeout(inputTimer);
+            inputTimer = setTimeout(() => {
+                const v = scanBuffer.trim();
+                if (v) processBarcode(v);
+            }, 500);
+        } else {
+            // 한글 등 허용 안 되는 문자 → 버퍼로 되돌리기
+            input.value = scanBuffer;
+        }
+        lastKeyHandled = false;
     });
 
-    // 혹시 compositionend까지 왔다면 버퍼로 덮어쓰기
+    // compositionend: 혹시 IME가 끝까지 들어왔다면 버퍼로 강제 덮어쓰기
     input.addEventListener('compositionend', () => {
         input.value = scanBuffer;
     });
 
-    // 붙여넣기 지원 (수동 입력 시)
+    // 붙여넣기 지원
     input.addEventListener('paste', e => {
         e.preventDefault();
         const pasted = (e.clipboardData || window.clipboardData).getData('text').trim().toUpperCase();
