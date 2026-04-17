@@ -660,18 +660,52 @@
         o.start(); o.stop(audioCtx.currentTime + 0.3);
     }
 
-    // ── 물리 키코드 → 문자 변환 (IME 완전 우회) ──
-    // 1차: e.code (물리 키 위치, iOS에서 안정적)
-    // 2차: e.key  (Android/Galaxy에서 e.code가 'Unidentified'/''/빈값일 때 폴백)
+    // ── 한글 → 영문 복원 (이동관리.html 방식 — Android 갤럭시 핵심) ──
+    function normalizeBarcode(input) {
+        const JAMO_TO_ENG = {
+            'ㄱ':'r','ㄲ':'R','ㄴ':'s','ㄷ':'e','ㄸ':'E','ㄹ':'f','ㅁ':'a','ㅂ':'q','ㅃ':'Q',
+            'ㅅ':'t','ㅆ':'T','ㅇ':'','ㅈ':'w','ㅉ':'W','ㅊ':'c','ㅋ':'z','ㅌ':'x','ㅍ':'v','ㅎ':'g',
+            'ㅏ':'k','ㅐ':'o','ㅑ':'i','ㅒ':'O','ㅓ':'j','ㅔ':'p','ㅕ':'u','ㅖ':'P',
+            'ㅗ':'h','ㅘ':'hk','ㅙ':'ho','ㅚ':'hl','ㅛ':'y',
+            'ㅜ':'n','ㅝ':'nj','ㅞ':'np','ㅟ':'nl','ㅠ':'b',
+            'ㅡ':'m','ㅢ':'ml','ㅣ':'l',
+            'ㄳ':'rt','ㄵ':'sw','ㄶ':'sg','ㄺ':'fr','ㄻ':'fa','ㄼ':'fq',
+            'ㄽ':'ft','ㄾ':'fx','ㄿ':'fv','ㅀ':'fg','ㅄ':'qt'
+        };
+        const INITIALS = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+        const VOWELS   = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'];
+        const FINALS   = ['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+        let result = '';
+        for (const ch of input) {
+            const code = ch.charCodeAt(0);
+            if (code >= 0xAC00 && code <= 0xD7A3) {
+                const offset = code - 0xAC00;
+                const iIdx = Math.floor(offset / (21 * 28));
+                const vIdx = Math.floor((offset % (21 * 28)) / 28);
+                const fIdx = offset % 28;
+                result += JAMO_TO_ENG[INITIALS[iIdx]] ?? '';
+                result += JAMO_TO_ENG[VOWELS[vIdx]]   ?? '';
+                if (fIdx > 0) result += JAMO_TO_ENG[FINALS[fIdx]] ?? '';
+            } else if (code >= 0x3130 && code <= 0x318F) {
+                result += JAMO_TO_ENG[ch] ?? ch;
+            } else {
+                result += ch;
+            }
+        }
+        return result.toUpperCase().trim();
+    }
+
+    // ── 물리 키코드 → 문자 변환 ──
+    // 1차: e.code (iOS/PC — IME 우회)
+    // 2차: e.key + normalizeBarcode (Android — 한글로 들어와도 복원)
     function charFromKeyEvent(e) {
         if (e.ctrlKey || e.metaKey || e.altKey) return null;
 
         const letters = {
-            'KeyA':'a','KeyB':'b','KeyC':'c','KeyD':'d','KeyE':'e',
-            'KeyF':'f','KeyG':'g','KeyH':'h','KeyI':'i','KeyJ':'j',
-            'KeyK':'k','KeyL':'l','KeyM':'m','KeyN':'n','KeyO':'o',
-            'KeyP':'p','KeyQ':'q','KeyR':'r','KeyS':'s','KeyT':'t',
-            'KeyU':'u','KeyV':'v','KeyW':'w','KeyX':'x','KeyY':'y','KeyZ':'z'
+            'KeyA':'a','KeyB':'b','KeyC':'c','KeyD':'d','KeyE':'e','KeyF':'f','KeyG':'g',
+            'KeyH':'h','KeyI':'i','KeyJ':'j','KeyK':'k','KeyL':'l','KeyM':'m','KeyN':'n',
+            'KeyO':'o','KeyP':'p','KeyQ':'q','KeyR':'r','KeyS':'s','KeyT':'t','KeyU':'u',
+            'KeyV':'v','KeyW':'w','KeyX':'x','KeyY':'y','KeyZ':'z'
         };
         if (letters[e.code]) return e.shiftKey ? letters[e.code].toUpperCase() : letters[e.code];
 
@@ -681,24 +715,16 @@
         };
         if (digits[e.code] && !e.shiftKey) return digits[e.code];
 
-        const specials = {
-            'Minus': e.shiftKey ? '_' : '-',
-            'Period': e.shiftKey ? '>' : '.',
-            'Slash': e.shiftKey ? '?' : '/',
-            'Space': ' '
-        };
+        const specials = { 'Minus': e.shiftKey ? '_' : '-', 'Period': '.', 'Slash': '/' };
         if (specials[e.code] !== undefined) return specials[e.code];
 
-        // ── 2차 폴백: e.code가 없거나 'Unidentified'일 때 (Android 대응) ──
-        const codeUnreliable = !e.code || e.code === 'Unidentified' || e.code === '';
-        if (codeUnreliable && e.key && e.key.length === 1) {
+        // 2차: Android — e.code가 'Unidentified'일 때 e.key + normalizeBarcode
+        if (!e.code || e.code === 'Unidentified') {
             const k = e.key;
-            // 영문자면 그대로 사용
-            if (/^[a-zA-Z]$/.test(k)) return k.toUpperCase();
-            // 숫자면 그대로 사용
-            if (/^[0-9]$/.test(k)) return k;
-            // 바코드에 쓰이는 특수문자 허용
-            if (/^[-_.\/]$/.test(k)) return k;
+            if (k && k.length >= 1) {
+                const normalized = normalizeBarcode(k);
+                return normalized.length >= 1 ? normalized : null;
+            }
         }
 
         return null;
@@ -706,92 +732,50 @@
 
     // ── 스캔 버퍼 ──
     let scanBuffer = '';
-    let lastKeyHandled = false; // keydown이 처리했는지 여부 → input 이벤트 중복 방지
 
-    // ── keydown: iOS/PC에서 신뢰할 수 있는 경로 ──
     input.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
             e.preventDefault();
             clearTimeout(inputTimer);
             const v = scanBuffer.trim();
+            scanBuffer = ''; input.value = '';
             if (v) processBarcode(v);
-            lastKeyHandled = true;
             return;
         }
-
         if (e.key === 'Backspace') {
             e.preventDefault();
             scanBuffer = scanBuffer.slice(0, -1);
             input.value = scanBuffer;
-            lastKeyHandled = true;
             return;
         }
-
         const char = charFromKeyEvent(e);
         if (char !== null) {
-            e.preventDefault(); // IME가 가로채기 전에 차단
+            e.preventDefault();
             scanBuffer += char;
             input.value = scanBuffer;
-            lastKeyHandled = true;
             clearTimeout(inputTimer);
             inputTimer = setTimeout(() => {
                 const v = scanBuffer.trim();
+                scanBuffer = ''; input.value = '';
                 if (v) processBarcode(v);
             }, 500);
-        } else {
-            // e.code가 'Unidentified'인 경우 → Android 모드로 넘김
-            lastKeyHandled = false;
         }
     });
 
-    // ── input 이벤트: Android/Galaxy 폴백 경로 ──
-    // Android에서는 keydown의 e.code가 'Unidentified'라 charFromKeyEvent가 null을 반환
-    // 이때 lastKeyHandled = false이므로 input 이벤트의 e.data로 처리
-    // e.data는 IME 결과가 아닌 실제 삽입된 문자이므로 Android에서도 신뢰 가능
-    input.addEventListener('input', e => {
-        if (lastKeyHandled) {
-            // iOS/PC: keydown이 이미 처리함 → input.value를 버퍼로 덮어써서 IME 잔류 차단
-            input.value = scanBuffer;
-            lastKeyHandled = false;
-            return;
-        }
+    // IME 조합 차단 (blur 없이 — 갤럭시 포커스 유실 방지)
+    input.addEventListener('compositionstart', () => { input.value = scanBuffer; });
+    input.addEventListener('compositionend',   () => { input.value = scanBuffer; });
 
-        // Android 모드: e.data 사용
-        const raw = e.data || '';
-        // 영문, 숫자, 바코드 허용 특수문자만 통과 (한글 등 차단)
-        const safe = raw.toUpperCase().replace(/[^A-Z0-9\-_.\/]/g, '');
-        if (safe) {
-            scanBuffer += safe;
-            input.value = scanBuffer;
-            clearTimeout(inputTimer);
-            inputTimer = setTimeout(() => {
-                const v = scanBuffer.trim();
-                if (v) processBarcode(v);
-            }, 500);
-        } else {
-            // 한글 등 허용 안 되는 문자 → 버퍼로 되돌리기
-            input.value = scanBuffer;
-        }
-        lastKeyHandled = false;
-    });
-
-    // compositionend: 혹시 IME가 끝까지 들어왔다면 버퍼로 강제 덮어쓰기
-    input.addEventListener('compositionend', () => {
-        input.value = scanBuffer;
-    });
-
-    // 붙여넣기 지원
     input.addEventListener('paste', e => {
         e.preventDefault();
-        const pasted = (e.clipboardData || window.clipboardData).getData('text').trim().toUpperCase();
+        const pasted = (e.clipboardData || window.clipboardData).getData('text').trim();
         if (pasted) processBarcode(pasted);
     });
 
     function processBarcode(code) {
-        const c = code.trim().toUpperCase();
+        const c = normalizeBarcode(code);
         if (!c) return;
-        scanBuffer = '';
-        input.value = '';
+        scanBuffer = ''; input.value = '';
         const isDup = allData.some(i => i.barcode === c) || currentHangerData.some(i => i.code === c);
         if (isDup) {
             playError();
