@@ -276,6 +276,17 @@
 
     .btn-undo:hover { background: var(--surface-hover); color: var(--text-primary); }
 
+    .btn-reset-hanger {
+        background: transparent;
+        border-color: rgba(248, 81, 73, 0.3);
+        color: var(--danger);
+        flex: 0 0 auto;
+        padding: 13px 14px;
+        font-size: 12px;
+    }
+
+    .btn-reset-hanger:hover { background: var(--danger-dim); border-color: rgba(248, 81, 73, 0.5); }
+
     .btn-save {
         background: var(--accent);
         color: #0D1117;
@@ -617,6 +628,7 @@
     <!-- 버튼 -->
     <div class="btn-row">
         <button class="btn btn-undo" onclick="undoLast()">↩ 삭제</button>
+        <button class="btn btn-reset-hanger" onclick="resetCurrentHanger()">현재 행거 초기화</button>
         <button class="btn btn-save" onclick="saveHanger()">행거 완료 →</button>
     </div>
 
@@ -896,6 +908,16 @@
     }
 
     // ── 액션 ──
+    async function resetCurrentHanger() {
+        if (!currentHangerData.length) return showAlertModal('초기화할 데이터가 없습니다.');
+        if (await showConfirm(`${hangerCount}번 행거 (${currentHangerData.length}벌)\n현재 행거만 초기화할까요?`)) {
+            currentHangerData = [];
+            updateUI();
+            saveToStorage();
+            showToast(`${hangerCount}번 행거 초기화 완료`);
+        }
+    }
+
     async function undoLast() {
         if (!currentHangerData.length) return input.focus();
         const last = currentHangerData[currentHangerData.length - 1];
