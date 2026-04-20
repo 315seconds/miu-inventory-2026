@@ -695,12 +695,9 @@
         return result.toUpperCase().trim();
     }
 
-    // ── 물리 키코드 → 문자 변환 ──
-    // iOS/PC: e.code 기반 (항상 신뢰)
-    // Android 폴백은 keydown에서 처리하지 않고 input 이벤트로 넘김
+    // ── 물리 키코드 → 문자 변환 (iOS/PC 전용) ──
     function charFromKeyEvent(e) {
         if (e.ctrlKey || e.metaKey || e.altKey) return null;
-
         const letters = {
             'KeyA':'a','KeyB':'b','KeyC':'c','KeyD':'d','KeyE':'e','KeyF':'f','KeyG':'g',
             'KeyH':'h','KeyI':'i','KeyJ':'j','KeyK':'k','KeyL':'l','KeyM':'m','KeyN':'n',
@@ -708,91 +705,91 @@
             'KeyV':'v','KeyW':'w','KeyX':'x','KeyY':'y','KeyZ':'z'
         };
         if (letters[e.code]) return e.shiftKey ? letters[e.code].toUpperCase() : letters[e.code];
-
         const digits = {
             'Digit0':'0','Digit1':'1','Digit2':'2','Digit3':'3','Digit4':'4',
             'Digit5':'5','Digit6':'6','Digit7':'7','Digit8':'8','Digit9':'9'
         };
         if (digits[e.code] && !e.shiftKey) return digits[e.code];
-
         const specials = { 'Minus': e.shiftKey ? '_' : '-', 'Period': '.', 'Slash': '/' };
         if (specials[e.code] !== undefined) return specials[e.code];
-
-        return null; // Android(Unidentified)는 null → input 이벤트에서 처리
+        return null;
     }
 
-    // ── 스캔 버퍼 ──
+    // ── 모드 감지 ──
+    // Android는 첫 keydown에서 e.code='Unidentified'가 오면 androidMode로 전환
+    // androidMode에서는 IME와 싸우지 않고 input.value를 통째로 읽어서 처리
     let scanBuffer = '';
-    let keydownHandled = false; // keydown이 처리한 경우 input 이벤트 무시 플래그
+    let androidMode = false;
 
-    // ── keydown: iOS/PC 경로 (e.code 신뢰) ──
     input.addEventListener('keydown', e => {
+        // Enter: 모드에 관계없이 현재 값을 즉시 처리
         if (e.key === 'Enter') {
             e.preventDefault();
             clearTimeout(inputTimer);
-            const v = scanBuffer.trim();
+            const raw = androidMode ? input.value.trim() : scanBuffer.trim();
             scanBuffer = ''; input.value = '';
-            if (v) processBarcode(v);
-            keydownHandled = true;
+            if (raw) processBarcode(raw);
             return;
         }
+
+        // Android 감지: e.code가 없거나 'Unidentified'
+        if (!e.code || e.code === 'Unidentified') {
+            androidMode = true;
+            // IME에 간섭하지 않고 타이머만 설정
+            // input.value에 IME가 최종 확정한 값이 쌓이면 통째로 처리
+            clearTimeout(inputTimer);
+            inputTimer = setTimeout(() => {
+                const raw = input.value.trim();
+                input.value = '';
+                if (raw) processBarcode(raw);
+            }, 500);
+            return;
+        }
+
+        // iOS/PC: e.code 신뢰 → 직접 버퍼 관리
+        androidMode = false;
+
         if (e.key === 'Backspace') {
             e.preventDefault();
             scanBuffer = scanBuffer.slice(0, -1);
             input.value = scanBuffer;
-            keydownHandled = true;
             return;
         }
+
         const char = charFromKeyEvent(e);
         if (char !== null) {
-            // iOS/PC: e.code로 문자 확정 → input 이벤트 무시
             e.preventDefault();
             scanBuffer += char;
             input.value = scanBuffer;
-            keydownHandled = true;
             clearTimeout(inputTimer);
             inputTimer = setTimeout(() => {
                 const v = scanBuffer.trim();
                 scanBuffer = ''; input.value = '';
                 if (v) processBarcode(v);
             }, 500);
-        } else {
-            // Android: e.code = 'Unidentified' → input 이벤트로 넘김
-            keydownHandled = false;
         }
     });
 
-    // ── input 이벤트: Android/Galaxy 전용 경로 ──
-    // Android에서는 e.data에 IME가 확정한 문자가 들어옴 (가장 신뢰할 수 있는 값)
-    // e.data가 한글이면 normalizeBarcode로 영문 복원
+    // iOS/PC: keydown이 e.preventDefault()로 처리했으므로 input 이벤트가 와도
+    // input.value를 scanBuffer로 덮어써서 IME 잔류 차단
     input.addEventListener('input', e => {
-        if (keydownHandled) {
-            // iOS/PC: keydown이 이미 처리 → input.value를 버퍼로 덮어쓰고 종료
-            input.value = scanBuffer;
-            keydownHandled = false;
-            return;
-        }
-        // Android 경로: e.data 사용
-        const raw = e.data || '';
-        if (!raw) { input.value = scanBuffer; return; }
-        const converted = normalizeBarcode(raw); // 한글이면 영문으로, 영문이면 그대로
-        if (converted) {
-            scanBuffer += converted;
-            input.value = scanBuffer;
-            clearTimeout(inputTimer);
-            inputTimer = setTimeout(() => {
-                const v = scanBuffer.trim();
-                scanBuffer = ''; input.value = '';
-                if (v) processBarcode(v);
-            }, 500);
-        } else {
+        if (!androidMode) {
             input.value = scanBuffer;
         }
-        keydownHandled = false;
+        // androidMode에서는 아무것도 하지 않음 — IME가 input.value를 자유롭게 관리
     });
 
-    // compositionend: 혹시 IME가 끝까지 왔으면 버퍼로 강제 덮어쓰기
-    input.addEventListener('compositionend', () => { input.value = scanBuffer; });
+    // Android: compositionend 시점에 타이머 리셋 (조합 완료 후 500ms 대기)
+    input.addEventListener('compositionend', () => {
+        if (androidMode) {
+            clearTimeout(inputTimer);
+            inputTimer = setTimeout(() => {
+                const raw = input.value.trim();
+                input.value = '';
+                if (raw) processBarcode(raw);
+            }, 500);
+        }
+    });
 
     input.addEventListener('paste', e => {
         e.preventDefault();
