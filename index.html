@@ -941,6 +941,10 @@
             updateUI();
             saveToStorage();
             showToast(`${hangerCount - 1}번 행거 완료!`);
+            // 행거 완료 직후 바로 스캔하면 첫 글자가 버퍼 리셋에 묻히는 문제 방지
+            // input blur 후 300ms 뒤에 포커스 복귀
+            input.blur();
+            setTimeout(() => { scanBuffer = ''; input.value = ''; input.focus(); }, 300);
         }
     }
 
